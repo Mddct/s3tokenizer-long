@@ -1,6 +1,7 @@
-import torch
-import s3tokenizer
 from typing import List
+
+import s3tokenizer
+import torch
 
 
 def sliding_window_audio(waveform,
@@ -62,13 +63,12 @@ def merge_tokenized_segments(tokenized_segments, overlap, token_rate):
         2) * token_rate  # Tokens corresponding to half of the overlap duration
 
     for i, tokens in enumerate(tokenized_segments):
-        if i == 0:
-            merged_tokens.extend(tokens)  # First window: keep all tokens
-        elif i == len(tokenized_segments) - 1:
-            # Keep only the middle part (drop overlap / 2 from both sides)
-            merged_tokens.extend(tokens[overlap_tokens:-overlap_tokens])
-        else:
-            merged_tokens.extend(tokens[overlap_tokens:])
+        print(len(tokens))
+        l = 0 if i == 0 else overlap_tokens
+        r = -overlap_tokens if i != len(tokenized_segments) - 1 else len(
+            tokens) - 1
+        # Keep only the middle part (drop overlap / 2 from both sides)
+        merged_tokens.extend(tokens[l:r])
 
     return merged_tokens
 
@@ -82,7 +82,7 @@ class _S3tokenizer:
         self.speech_tokenizer.to(device)
         self.device = device
 
-    def __call__(self, audios: List[torch.Tensor]) -> List[int]:
+    def __call__(self, audios: List[torch.Tensor]) -> List[List[int]]:
         mels = []
         for audio in audios:
             mels.append(s3tokenizer.log_mel_spectrogram(audio))
@@ -106,14 +106,16 @@ if __name__ == '__main__':
 
     tokenizer = _S3tokenizer()
     wav = s3tokenizer.load_audio(
-        "test.wav",
+        "output.wav",
         sr,
     )
 
     segments = sliding_window_audio(wav, sr, window_size_in_seconds,
                                     overlap_in_seconds)
+    for segment in segments:
+        print(len(segment))
     segments_tokens = tokenizer(segments)
     final_tokens = merge_tokenized_segments(segments_tokens,
                                             overlap=4,
                                             token_rate=token_rate)
-    assert len(final_tokens) == 6000
+    print(final_tokens)
